@@ -1,0 +1,11 @@
+{
+  "id": "azcolle-export",
+  "name": "AZcolle Export PDF",
+  "version": "1.11.0",
+  "minAppVersion": "0.15.0",
+  "description": "Export PDF plugin for AZcolle - Enhanced PDF export with bookmarks, outline, and custom headers/footers.",
+  "author": "AZcolle Team (based on Better Export PDF by l1xnan)",
+  "authorUrl": "https://github.com/azcolle",
+  "fundingUrl": "",
+  "isDesktopOnly": true
+}

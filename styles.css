@@ -1,0 +1,67 @@
+#azcolle-export {
+  display: flex;
+  flex-direction: row;
+  height: 75vh;
+}
+
+#azcolle-export .pdf-preview {
+  flex: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  align-content: flex-start;
+}
+
+#azcolle-export .pdf-preview .webview-wrapper {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+#azcolle-export .pdf-preview .print-size {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 99;
+  font-size: 0.6rem;
+  white-space: pre-wrap;
+  text-align: right;
+  visibility: hidden;
+}
+
+#azcolle-export .pdf-preview > div {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+}
+#azcolle-export .pdf-preview > div.progress {
+  flex: none;
+  height: auto;
+  width: 100%;
+  text-align: left;
+}
+
+#azcolle-export .pdf-preview .filename {
+  font-size: 0.75rem;
+  color: var(--color-base-60);
+}
+#azcolle-export .pdf-preview .filename:not(:first-child) {
+  padding-top: calc(var(--p-spacing));
+}
+
+#azcolle-export webview {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+}
+
+#azcolle-export .setting-wrapper {
+  width: 320px;
+  margin-left: 16px;
+}
+
+#azcolle-export .setting-wrapper .setting-item[hidden] {
+  display: none;
+}
