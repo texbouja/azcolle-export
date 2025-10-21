@@ -2,10 +2,14 @@ import electron, { type WebviewTag } from "electron";
 import * as fs from "fs/promises";
 import { type FrontMatterCache } from "obsidian";
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRef, StandardFonts } from "pdf-lib";
+import { exec } from "child_process";
+import { promisify } from "util";
 
-import type { BetterExportPdfPluginSettings } from "./main";
+import type { BetterExportPdfPluginSettings, NUpBackend } from "./main";
 import type { DocType, PageSizeType, TConfig } from "./modal";
 import { TreeNode, getHeadingTree, safeParseFloat, safeParseInt, render } from "./utils";
+
+const execPromise = promisify(exec);
 
 interface TPosition {
   [key: string]: number[];
@@ -443,7 +447,31 @@ export async function exportToPDF(
       maxLevel: safeParseInt(config?.maxLevel, 6),
     });
 
-    await fs.writeFile(outputFile, data);
+    // Check if n-up is enabled
+    if (config.nupEnabled && config.nupBackend !== "none") {
+      // Create temporary file for intermediate PDF
+      const tempFile = outputFile.replace(/\.pdf$/, "_temp.pdf");
+      await fs.writeFile(tempFile, data);
+
+      try {
+        // Apply n-up transformation
+        await applyNUp(tempFile, outputFile, config.nupBackend, config.nupBinaryPath, config.nupCustomCommand);
+
+        // Clean up temporary file
+        try {
+          await fs.unlink(tempFile);
+        } catch (cleanupError) {
+          console.warn("Failed to clean up temporary file:", cleanupError);
+        }
+      } catch (nupError) {
+        console.error("N-up transformation failed:", nupError);
+        // If n-up fails, save the original PDF
+        await fs.writeFile(outputFile, data);
+      }
+    } else {
+      // No n-up transformation, save directly
+      await fs.writeFile(outputFile, data);
+    }
 
     if (config.open) {
       // @ts-ignore
@@ -484,4 +512,98 @@ export async function getOutputPath(filename: string, isTimestamp?: boolean) {
     return;
   }
   return result.filePaths[0];
+}
+
+// ============================================================
+// N-up Utility Functions
+// ============================================================
+
+/**
+ * Check if a binary is available in system PATH
+ */
+async function isBinaryAvailable(binaryName: string): Promise<boolean> {
+  try {
+    const command = process.platform === "win32" ? `where ${binaryName}` : `which ${binaryName}`;
+    await execPromise(command);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect available n-up backends on the system
+ */
+export async function detectNUpBackends(): Promise<NUpBackend[]> {
+  const backends: NUpBackend[] = ["none"];
+
+  if (await isBinaryAvailable("cpdf")) backends.push("cpdf");
+  if (await isBinaryAvailable("pdfnup")) backends.push("pdfnup");
+  if (await isBinaryAvailable("qpdf")) backends.push("qpdf");
+  if (await isBinaryAvailable("gs")) backends.push("ghostscript");
+
+  return backends;
+}
+
+/**
+ * Get command template for each backend
+ */
+function getNUpCommand(backend: NUpBackend, binaryPath: string, customCommand: string): string | null {
+  const binary = binaryPath || backend;
+
+  const templates: Record<NUpBackend, string> = {
+    none: "",
+    cpdf: `"${binary}" -impose -impose-columns 2 -impose-rows 1 "{{input}}" -o "{{output}}"`,
+    pdfnup: `"${binary}" --nup 2x1 --landscape --outfile "{{output}}" "{{input}}"`,
+    qpdf: "", // qpdf doesn't support n-up natively
+    ghostscript: `pdf2ps "{{input}}" - | psnup -2 | ps2pdf - "{{output}}"`,
+    custom: customCommand,
+  };
+
+  return templates[backend] || null;
+}
+
+/**
+ * Apply n-up transformation to PDF file
+ */
+export async function applyNUp(
+  inputFile: string,
+  outputFile: string,
+  backend: NUpBackend,
+  binaryPath: string,
+  customCommand: string,
+): Promise<void> {
+  if (backend === "none") {
+    // No transformation, just rename
+    await fs.rename(inputFile, outputFile);
+    return;
+  }
+
+  if (backend === "qpdf") {
+    console.warn("qpdf does not support n-up natively. Skipping transformation.");
+    await fs.rename(inputFile, outputFile);
+    return;
+  }
+
+  const commandTemplate = getNUpCommand(backend, binaryPath, customCommand);
+  if (!commandTemplate) {
+    throw new Error(`No command template found for backend: ${backend}`);
+  }
+
+  const command = commandTemplate.replace(/\{\{input\}\}/g, inputFile).replace(/\{\{output\}\}/g, outputFile);
+
+  console.log(`Executing n-up command: ${command}`);
+
+  try {
+    const { stdout, stderr } = await execPromise(command, { maxBuffer: 10 * 1024 * 1024 });
+    if (stderr && stderr.length > 0) {
+      console.warn(`N-up stderr: ${stderr}`);
+    }
+    console.log(`N-up completed successfully`);
+  } catch (error) {
+    console.error(`N-up command failed:`, error);
+    // Fallback: just rename the file
+    await fs.rename(inputFile, outputFile);
+    throw new Error(`N-up transformation failed: ${error.message}`);
+  }
 }

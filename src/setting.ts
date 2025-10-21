@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, TextAreaComponent } from "obsidian";
 import i18n, { type Lang } from "./i18n";
-import BetterExportPdfPlugin from "./main";
+import BetterExportPdfPlugin, { type NUpBackend } from "./main";
+import { detectNUpBackends } from "./pdf";
 
 function setAttributes(element: HTMLTextAreaElement, attributes: { [x: string]: string }) {
   for (const key in attributes) {
@@ -188,5 +189,75 @@ export default class ConfigSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    // N-up Settings Section
+    new Setting(containerEl).setName("N-up PDF Settings").setHeading();
+
+    new Setting(containerEl)
+      .setName("N-up Backend")
+      .setDesc("Choose the command-line tool to use for 2-up PDF transformation. Install one of these tools on your system: cpdf, pdfnup, ghostscript.")
+      .addDropdown((dropdown) => {
+        const backends: Record<NUpBackend, string> = {
+          none: "Disabled",
+          cpdf: "cpdf (Coherent PDF)",
+          pdfnup: "pdfnup (pdfjam)",
+          ghostscript: "Ghostscript (gs + psnup)",
+          qpdf: "qpdf (not recommended - no n-up support)",
+          custom: "Custom command",
+        };
+
+        Object.entries(backends).forEach(([key, label]) => {
+          dropdown.addOption(key, label);
+        });
+
+        dropdown.setValue(this.plugin.settings.nupBackend).onChange(async (value: NUpBackend) => {
+          this.plugin.settings.nupBackend = value;
+          await this.plugin.saveSettings();
+
+          // Show/hide custom command field
+          customCommandSetting.settingEl.style.display = value === "custom" ? "" : "none";
+          binaryPathSetting.settingEl.style.display = value !== "none" && value !== "custom" ? "" : "none";
+        });
+      })
+      .addButton((button) => {
+        button.setButtonText("Detect").onClick(async () => {
+          const detected = await detectNUpBackends();
+          const detectedStr = detected.filter((b) => b !== "none").join(", ") || "none";
+          button.setButtonText(`Found: ${detectedStr}`);
+          setTimeout(() => button.setButtonText("Detect"), 3000);
+        });
+      });
+
+    const binaryPathSetting = new Setting(containerEl)
+      .setName("Binary Path (Optional)")
+      .setDesc("Leave empty to use the binary from system PATH. Specify full path if the tool is not in PATH.")
+      .addText((text) => {
+        text
+          .setPlaceholder("/usr/local/bin/cpdf")
+          .setValue(this.plugin.settings.nupBinaryPath)
+          .onChange(async (value) => {
+            this.plugin.settings.nupBinaryPath = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    const customCommandSetting = new Setting(containerEl)
+      .setName("Custom Command")
+      .setDesc('Use {{input}} for input file and {{output}} for output file. Example: mycustomtool --2up "{{input}}" -o "{{output}}"')
+      .addText((text) => {
+        text
+          .setPlaceholder('mytool --2up "{{input}}" -o "{{output}}"')
+          .setValue(this.plugin.settings.nupCustomCommand)
+          .onChange(async (value) => {
+            this.plugin.settings.nupCustomCommand = value;
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.style.width = "100%";
+      });
+
+    // Initial visibility
+    customCommandSetting.settingEl.style.display = this.plugin.settings.nupBackend === "custom" ? "" : "none";
+    binaryPathSetting.settingEl.style.display =
+      this.plugin.settings.nupBackend !== "none" && this.plugin.settings.nupBackend !== "custom" ? "" : "none";
   }
 }

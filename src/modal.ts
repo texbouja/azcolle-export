@@ -34,6 +34,9 @@ export interface TConfig {
   cssSnippet?: string;
 
   multiple?: boolean;
+
+  // N-up option
+  nupEnabled: boolean;
 }
 
 export type DocType = { doc: Document; frontMatter?: FrontMatterCache; file: TFile };
@@ -93,6 +96,7 @@ export class ExportConfigModal extends Modal {
       displayHeader: plugin.settings.displayHeader ?? true,
       displayFooter: plugin.settings.displayHeader ?? true,
       cssSnippet: "0",
+      nupEnabled: false,
       ...(plugin.settings?.prevConfig ?? {}),
     } as TConfig;
   }
@@ -330,7 +334,7 @@ export class ExportConfigModal extends Modal {
     this.containerEl.style.setProperty("--dialog-width", "60vw");
 
     this.titleEl.setText("Export to PDF");
-    const wrapper = this.contentEl.createDiv({ attr: { id: "better-export-pdf" } });
+    const wrapper = this.contentEl.createDiv({ attr: { id: "azcolle-export" } });
 
     const title = (this.file as TFile)?.basename ?? this.file?.name;
 
@@ -601,6 +605,21 @@ export class ExportConfigModal extends Modal {
           this.config["open"] = value;
         }),
     );
+
+    // N-up toggle (only show if backend is configured)
+    if (this.plugin.settings.nupBackend !== "none") {
+      new Setting(contentEl)
+        .setName("Apply 2-up transformation")
+        .setDesc(`Transform exported PDF to 2-up layout using ${this.plugin.settings.nupBackend}. Two pages will be placed side-by-side on each sheet.`)
+        .addToggle((toggle) =>
+          toggle
+            .setTooltip("Apply n-up transformation after export")
+            .setValue(this.config["nupEnabled"])
+            .onChange(async (value) => {
+              this.config["nupEnabled"] = value;
+            }),
+        );
+    }
 
     const snippets = this.cssSnippets();
 

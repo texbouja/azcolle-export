@@ -8,6 +8,8 @@ import path from "path";
 
 const isDev = process.env.NODE_ENV === "development";
 
+export type NUpBackend = "none" | "cpdf" | "pdfnup" | "ghostscript" | "qpdf" | "custom";
+
 export interface BetterExportPdfPluginSettings {
   prevConfig?: TConfig;
 
@@ -28,6 +30,11 @@ export interface BetterExportPdfPluginSettings {
   debug: boolean;
   enabledCss: boolean;
   concurrency: string;
+
+  // N-up settings
+  nupBackend: NUpBackend;
+  nupBinaryPath: string;
+  nupCustomCommand: string;
 }
 
 const DEFAULT_SETTINGS: BetterExportPdfPluginSettings = {
@@ -47,6 +54,11 @@ const DEFAULT_SETTINGS: BetterExportPdfPluginSettings = {
   isTimestamp: false,
   enabledCss: false,
   concurrency: "5",
+
+  // N-up defaults
+  nupBackend: "none",
+  nupBinaryPath: "",
+  nupCustomCommand: "",
 };
 
 export default class BetterExportPdfPlugin extends Plugin {
@@ -109,29 +121,33 @@ export default class BetterExportPdfPlugin extends Plugin {
   }
 
   registerEvents() {
-    // Register the Export As HTML button in the file menu
+    // Register the Export button in the file menu (for files only)
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file: TFile | TFolder) => {
-        let title = file instanceof TFolder ? "Export folder to PDF" : "Better Export PDF";
-        if (isDev) {
-          title = `${title} (dev)`;
-        }
+        // Only show for individual files, not folders (folders have their own submenu)
+        if (file instanceof TFile) {
+          let title = "AZcolle Export PDF";
+          if (isDev) {
+            title = `${title} (dev)`;
+          }
 
-        menu.addItem((item) => {
-          item
-            .setTitle(title)
-            .setIcon("download")
-            .setSection("action")
-            .onClick(async () => {
-              new ExportConfigModal(this, file).open();
-            });
-        });
+          menu.addItem((item) => {
+            item
+              .setTitle(title)
+              .setIcon("download")
+              .setSection("action")
+              .onClick(async () => {
+                new ExportConfigModal(this, file).open();
+              });
+          });
+        }
       }),
     );
+    // Register menu for folders
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file: TFile | TFolder) => {
         if (file instanceof TFolder) {
-          let title = "Export to PDF...";
+          let title = "AZColle Export";
           if (isDev) {
             title = `${title} (dev)`;
           }
@@ -139,6 +155,14 @@ export default class BetterExportPdfPlugin extends Plugin {
             item.setTitle(title).setIcon("lucide-folder-down").setSection("action");
             // @ts-ignore
             const subMenu: Menu = item.setSubmenu();
+            subMenu.addItem((item) =>
+              item
+                .setTitle("Export folder to PDF")
+                .setIcon("download")
+                .onClick(async () => {
+                  new ExportConfigModal(this, file).open();
+                }),
+            );
             subMenu.addItem((item) =>
               item
                 .setTitle("Export each file to PDF")
