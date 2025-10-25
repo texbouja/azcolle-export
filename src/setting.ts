@@ -202,7 +202,6 @@ export default class ConfigSettingTab extends PluginSettingTab {
           cpdf: "cpdf (Coherent PDF)",
           pdfnup: "pdfnup (pdfjam)",
           ghostscript: "Ghostscript (gs + psnup)",
-          qpdf: "qpdf (not recommended - no n-up support)",
           custom: "Custom command",
         };
 

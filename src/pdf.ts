@@ -539,7 +539,6 @@ export async function detectNUpBackends(): Promise<NUpBackend[]> {
 
   if (await isBinaryAvailable("cpdf")) backends.push("cpdf");
   if (await isBinaryAvailable("pdfnup")) backends.push("pdfnup");
-  if (await isBinaryAvailable("qpdf")) backends.push("qpdf");
   if (await isBinaryAvailable("gs")) backends.push("ghostscript");
 
   return backends;
@@ -555,7 +554,6 @@ function getNUpCommand(backend: NUpBackend, binaryPath: string, customCommand: s
     none: "",
     cpdf: `"${binary}" -impose -impose-columns 2 -impose-rows 1 "{{input}}" -o "{{output}}"`,
     pdfnup: `"${binary}" --nup 2x1 --landscape --outfile "{{output}}" "{{input}}"`,
-    qpdf: "", // qpdf doesn't support n-up natively
     ghostscript: `pdf2ps "{{input}}" - | psnup -2 | ps2pdf - "{{output}}"`,
     custom: customCommand,
   };
@@ -575,12 +573,6 @@ export async function applyNUp(
 ): Promise<void> {
   if (backend === "none") {
     // No transformation, just rename
-    await fs.rename(inputFile, outputFile);
-    return;
-  }
-
-  if (backend === "qpdf") {
-    console.warn("qpdf does not support n-up natively. Skipping transformation.");
     await fs.rename(inputFile, outputFile);
     return;
   }

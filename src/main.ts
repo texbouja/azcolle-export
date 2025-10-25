@@ -8,7 +8,7 @@ import path from "path";
 
 const isDev = process.env.NODE_ENV === "development";
 
-export type NUpBackend = "none" | "cpdf" | "pdfnup" | "ghostscript" | "qpdf" | "custom";
+export type NUpBackend = "none" | "cpdf" | "pdfnup" | "ghostscript" | "custom";
 
 export interface BetterExportPdfPluginSettings {
   prevConfig?: TConfig;
